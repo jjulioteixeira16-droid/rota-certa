@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AppShell from "@/components/AppShell";
 
 type Motoboy = {
   id: string;
@@ -167,113 +168,97 @@ export default function MotoboysPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center bg-[#f4efe6]">
         <p>Carregando...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-bold">
-            {editandoId ? "Editar motoboy" : "Motoboys"}
-          </h1>
-          <a href="/dashboard" className="underline text-sm">
-            Voltar
-          </a>
-        </div>
+    <AppShell title={editandoId ? "Editar motoboy" : "Motoboys"}>
+      <form onSubmit={salvar} className="grid gap-3 mb-6">
+        <input
+          required
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Nome do motoboy"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
+        <input
+          value={telefone}
+          onChange={(e) => setTelefone(formatarTelefoneBR(e.target.value))}
+          placeholder="Telefone (opcional)"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
+        <select
+          value={pixTipo}
+          onChange={(e) => setPixTipo(e.target.value)}
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        >
+          {PIX_TIPOS.map((tipo) => (
+            <option key={tipo} value={tipo}>
+              {tipo}
+            </option>
+          ))}
+        </select>
+        <input
+          value={pixChave}
+          onChange={(e) => setPixChave(e.target.value)}
+          placeholder="Chave Pix (opcional)"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
 
-        <form onSubmit={salvar} className="grid gap-3 mb-6">
-          <input
-            required
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome do motoboy"
-            className="border rounded-lg px-3 py-2"
-          />
-          <input
-            value={telefone}
-            onChange={(e) => setTelefone(formatarTelefoneBR(e.target.value))}
-            placeholder="Telefone (opcional)"
-            className="border rounded-lg px-3 py-2"
-          />
-          <select
-            value={pixTipo}
-            onChange={(e) => setPixTipo(e.target.value)}
-            className="border rounded-lg px-3 py-2"
+        <div className="flex gap-3">
+          <button
+            disabled={salvando}
+            className="flex-1 bg-orange-500 text-white rounded-lg py-2 font-medium"
           >
-            {PIX_TIPOS.map((tipo) => (
-              <option key={tipo} value={tipo}>
-                {tipo}
-              </option>
-            ))}
-          </select>
-          <input
-            value={pixChave}
-            onChange={(e) => setPixChave(e.target.value)}
-            placeholder="Chave Pix (opcional)"
-            className="border rounded-lg px-3 py-2"
-          />
-
-          <div className="flex gap-3">
+            {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "Adicionar"}
+          </button>
+          {editandoId && (
             <button
-              disabled={salvando}
-              className="flex-1 bg-black text-white rounded-lg py-2"
+              type="button"
+              onClick={limparFormulario}
+              className="border border-stone-300 rounded-lg px-4 py-2"
             >
-              {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "Adicionar"}
+              Cancelar
             </button>
-            {editandoId && (
-              <button
-                type="button"
-                onClick={limparFormulario}
-                className="border rounded-lg px-4 py-2"
-              >
-                Cancelar
-              </button>
-            )}
-          </div>
-        </form>
+          )}
+        </div>
+      </form>
 
-        {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
+      {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
-        {lista.length === 0 ? (
-          <p className="text-zinc-600">Nenhum motoboy cadastrado ainda.</p>
-        ) : (
-          <ul className="divide-y">
-            {lista.map((m) => (
-              <li key={m.id} className="py-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{m.name}</p>
-                  <p className="text-sm text-zinc-600">
-                    {m.phone || "Sem telefone"} · {m.active ? "Ativo" : "Inativo"}
-                  </p>
-                  <p className="text-sm text-zinc-600">
-                    {m.pix_key
-                      ? `Pix (${m.pix_type}): ${m.pix_key}`
-                      : "Pix não cadastrado"}
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2 text-sm">
-                  <button onClick={() => comecarEdicao(m)} className="underline">
-                    Editar
-                  </button>
-                  <button onClick={() => alternarAtivo(m)} className="underline">
-                    {m.active ? "Desativar" : "Ativar"}
-                  </button>
-                  <button
-                    onClick={() => excluir(m.id)}
-                    className="text-red-600 underline"
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+      {lista.length === 0 ? (
+        <p className="text-stone-600">Nenhum motoboy cadastrado ainda.</p>
+      ) : (
+        <ul className="divide-y divide-stone-200">
+          {lista.map((m) => (
+            <li key={m.id} className="py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{m.name}</p>
+                <p className="text-sm text-stone-600">
+                  {m.phone || "Sem telefone"} · {m.active ? "Ativo" : "Inativo"}
+                </p>
+                <p className="text-sm text-stone-600">
+                  {m.pix_key ? `Pix (${m.pix_type}): ${m.pix_key}` : "Pix não cadastrado"}
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 text-sm">
+                <button onClick={() => comecarEdicao(m)} className="underline">
+                  Editar
+                </button>
+                <button onClick={() => alternarAtivo(m)} className="underline">
+                  {m.active ? "Desativar" : "Ativar"}
+                </button>
+                <button onClick={() => excluir(m.id)} className="text-red-600 underline">
+                  Excluir
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AppShell>
   );
 }

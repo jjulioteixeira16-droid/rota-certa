@@ -41,7 +41,6 @@ export default function CadastroPage() {
         return;
       }
 
-      // Garante que a sessão existe antes de gravar a empresa
       if (!data.session) {
         const { error: erroLogin } = await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -88,12 +87,11 @@ export default function CadastroPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-zinc-950 p-4 text-zinc-100">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+    <main className="min-h-screen flex items-center justify-center bg-[#f4efe6] p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
+        <p className="text-sm font-medium text-orange-600">Rota Certa</p>
         <h1 className="text-2xl font-bold mb-1">Criar conta</h1>
-        <p className="text-zinc-400 mb-6">
-          Comece a usar o sistema da sua empresa
-        </p>
+        <p className="text-stone-500 mb-6">Comece a usar o sistema da sua empresa</p>
 
         <form onSubmit={criarConta} className="space-y-4">
           <div>
@@ -102,7 +100,7 @@ export default function CadastroPage() {
               required
               value={nomeEmpresa}
               onChange={(e) => setNomeEmpresa(e.target.value)}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2"
             />
           </div>
 
@@ -112,7 +110,7 @@ export default function CadastroPage() {
               required
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2"
             />
           </div>
 
@@ -123,7 +121,7 @@ export default function CadastroPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2"
             />
           </div>
 
@@ -135,22 +133,22 @@ export default function CadastroPage() {
               minLength={6}
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2"
             />
           </div>
 
-          {mensagem && <p className="text-sm text-red-400">{mensagem}</p>}
+          {mensagem && <p className="text-sm text-red-600">{mensagem}</p>}
 
           <button
             type="submit"
             disabled={carregando}
-            className="w-full rounded-lg bg-orange-500 py-2 font-medium text-black disabled:opacity-60"
+            className="w-full rounded-lg bg-orange-500 py-2.5 font-medium text-white disabled:opacity-60"
           >
             {carregando ? "Criando..." : "Criar conta"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-zinc-400 mt-4">
+        <p className="text-center text-sm text-stone-600 mt-4">
           Já tem conta?{" "}
           <a href="/login" className="underline">
             Fazer login

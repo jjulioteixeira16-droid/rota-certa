@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AppShell from "@/components/AppShell";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -118,7 +119,7 @@ export default function DashboardPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center bg-[#f4efe6]">
         <p>Carregando...</p>
       </main>
     );
@@ -126,13 +127,13 @@ export default function DashboardPage() {
 
   if (precisaEmpresa) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-zinc-100 p-4">
+      <main className="min-h-screen flex items-center justify-center bg-[#f4efe6] p-4">
         <form
           onSubmit={salvarEmpresa}
-          className="w-full max-w-md bg-white rounded-2xl shadow p-6 space-y-4"
+          className="w-full max-w-md bg-white rounded-2xl border border-stone-200 shadow-sm p-6 space-y-4"
         >
           <h1 className="text-2xl font-bold">Sua empresa</h1>
-          <p className="text-zinc-600">
+          <p className="text-stone-600">
             Seu login já existe. Agora vamos gravar o nome da lanchonete/padaria.
           </p>
           <input
@@ -140,12 +141,12 @@ export default function DashboardPage() {
             value={nomeEmpresa}
             onChange={(e) => setNomeEmpresa(e.target.value)}
             placeholder="Ex: Rushtedby"
-            className="w-full border rounded-lg px-3 py-2"
+            className="w-full border border-stone-300 rounded-lg px-3 py-2"
           />
           {mensagem && <p className="text-sm text-red-600">{mensagem}</p>}
           <button
             disabled={salvando}
-            className="w-full bg-black text-white rounded-lg py-2"
+            className="w-full bg-orange-500 text-white rounded-lg py-2.5 font-medium"
           >
             {salvando ? "Salvando..." : "Salvar empresa"}
           </button>
@@ -155,46 +156,35 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6">
-        <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
-        <p className="text-zinc-600 mb-6">
-          Empresa: <strong>{nomeEmpresa || "—"}</strong>
-          <br />
-          Usuário: <strong>{email}</strong>
-        </p>
+    <AppShell title="Início">
+      <p className="text-stone-600 mb-6">
+        Empresa: <strong>{nomeEmpresa || "—"}</strong>
+        <br />
+        Usuário: <strong>{email}</strong>
+      </p>
 
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <a
-            href="/bairros"
-            className="bg-black text-white rounded-lg px-4 py-2 text-center"
-          >
-            Bairros e valores
-          </a>
-          <a
-            href="/motoboys"
-            className="bg-black text-white rounded-lg px-4 py-2 text-center"
-          >
-            Motoboys
-          </a>
-          <a
-            href="/lancamentos"
-            className="bg-black text-white rounded-lg px-4 py-2 text-center"
-          >
-            Lançamentos
-          </a>
-          <a
-            href="/fechamento"
-            className="bg-black text-white rounded-lg px-4 py-2 text-center"
-          >
-            Fechamento do dia
-          </a>
-        </div>
-
-        <button onClick={sair} className="border rounded-lg px-4 py-2">
-          Sair
-        </button>
+      <div className="grid sm:grid-cols-2 gap-3 mb-6">
+        <a href="/bairros" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
+          <p className="font-semibold">Bairros e valores</p>
+          <p className="text-sm text-stone-500">Taxa de cada região</p>
+        </a>
+        <a href="/motoboys" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
+          <p className="font-semibold">Motoboys</p>
+          <p className="text-sm text-stone-500">Cadastro, Pix e status</p>
+        </a>
+        <a href="/lancamentos" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
+          <p className="font-semibold">Lançamentos</p>
+          <p className="text-sm text-stone-500">Entrega, combustível e bônus</p>
+        </a>
+        <a href="/fechamento" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
+          <p className="font-semibold">Fechamento do dia</p>
+          <p className="text-sm text-stone-500">Totais e marcar como pago</p>
+        </a>
       </div>
-    </main>
+
+      <button onClick={sair} className="border border-stone-300 rounded-lg px-4 py-2">
+        Sair
+      </button>
+    </AppShell>
   );
 }

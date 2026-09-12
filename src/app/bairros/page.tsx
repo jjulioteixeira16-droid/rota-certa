@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AppShell from "@/components/AppShell";
 
 type Bairro = {
   id: string;
@@ -163,94 +164,77 @@ export default function BairrosPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center bg-[#f4efe6]">
         <p>Carregando...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-bold">
-            {editandoId ? "Editar bairro" : "Bairros e valores"}
-          </h1>
-          <a href="/dashboard" className="underline text-sm">
-            Voltar
-          </a>
-        </div>
-
-        <form onSubmit={salvarBairro} className="grid gap-3 sm:grid-cols-3 mb-6">
-          <input
-            required
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome do bairro"
-            className="border rounded-lg px-3 py-2"
-          />
-          <input
-            required
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            placeholder="Valor. Ex: 8,00"
-            className="border rounded-lg px-3 py-2"
-          />
-          <div className="flex gap-2">
+    <AppShell title={editandoId ? "Editar bairro" : "Bairros e valores"}>
+      <form onSubmit={salvarBairro} className="grid gap-3 sm:grid-cols-3 mb-6">
+        <input
+          required
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Nome do bairro"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
+        <input
+          required
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          placeholder="Valor. Ex: 8,00"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
+        <div className="flex gap-2">
+          <button
+            disabled={salvando}
+            className="flex-1 bg-orange-500 text-white rounded-lg py-2 font-medium"
+          >
+            {salvando ? "Salvando..." : editandoId ? "Salvar" : "Adicionar"}
+          </button>
+          {editandoId && (
             <button
-              disabled={salvando}
-              className="flex-1 bg-black text-white rounded-lg py-2"
+              type="button"
+              onClick={limparFormulario}
+              className="border border-stone-300 rounded-lg px-3 py-2"
             >
-              {salvando ? "Salvando..." : editandoId ? "Salvar" : "Adicionar"}
+              Cancelar
             </button>
-            {editandoId && (
-              <button
-                type="button"
-                onClick={limparFormulario}
-                className="border rounded-lg px-3 py-2"
-              >
-                Cancelar
-              </button>
-            )}
-          </div>
-        </form>
+          )}
+        </div>
+      </form>
 
-        {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
+      {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
-        {bairros.length === 0 ? (
-          <p className="text-zinc-600">Nenhum bairro cadastrado ainda.</p>
-        ) : (
-          <ul className="divide-y">
-            {bairros.map((bairro) => (
-              <li
-                key={bairro.id}
-                className="py-3 flex items-center justify-between gap-3"
-              >
-                <div>
-                  <p className="font-medium">{bairro.name}</p>
-                  <p className="text-sm text-zinc-600">
-                    R$ {Number(bairro.fee).toFixed(2).replace(".", ",")}
-                  </p>
-                </div>
-                <div className="flex gap-3 text-sm">
-                  <button
-                    onClick={() => comecarEdicao(bairro)}
-                    className="underline"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => excluirBairro(bairro.id)}
-                    className="text-red-600 underline"
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+      {bairros.length === 0 ? (
+        <p className="text-stone-600">Nenhum bairro cadastrado ainda.</p>
+      ) : (
+        <ul className="divide-y divide-stone-200">
+          {bairros.map((bairro) => (
+            <li key={bairro.id} className="py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{bairro.name}</p>
+                <p className="text-sm text-stone-600">
+                  R$ {Number(bairro.fee).toFixed(2).replace(".", ",")}
+                </p>
+              </div>
+              <div className="flex gap-3 text-sm">
+                <button onClick={() => comecarEdicao(bairro)} className="underline">
+                  Editar
+                </button>
+                <button
+                  onClick={() => excluirBairro(bairro.id)}
+                  className="text-red-600 underline"
+                >
+                  Excluir
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AppShell>
   );
 }

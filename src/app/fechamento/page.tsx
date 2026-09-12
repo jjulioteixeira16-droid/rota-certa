@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AppShell from "@/components/AppShell";
 
 type Motoboy = {
   id: string;
@@ -159,7 +160,7 @@ export default function FechamentoPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center bg-[#f4efe6]">
         <p>Carregando...</p>
       </main>
     );
@@ -209,85 +210,76 @@ export default function FechamentoPage() {
   );
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-bold">Fechamento</h1>
-          <a href="/dashboard" className="underline text-sm">
-            Voltar
-          </a>
-        </div>
+    <AppShell title="Fechamento">
+      <label className="block text-sm text-stone-600 mb-6">
+        Data
+        <input
+          type="date"
+          value={dataRef}
+          onChange={(e) => setDataRef(e.target.value)}
+          className="mt-1 w-full max-w-xs border border-stone-300 rounded-lg px-3 py-2"
+        />
+      </label>
 
-        <label className="block text-sm text-zinc-600 mb-6">
-          Data
-          <input
-            type="date"
-            value={dataRef}
-            onChange={(e) => setDataRef(e.target.value)}
-            className="mt-1 w-full max-w-xs border rounded-lg px-3 py-2"
-          />
-        </label>
+      {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
-        {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
-
-        {linhas.length === 0 ? (
-          <p className="text-zinc-600">Ainda não há lançamentos nesta data.</p>
-        ) : (
-          <div className="space-y-4">
-            {linhas.map((l) => (
-              <div key={l.id} className="border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <p className="font-bold">{l.nome}</p>
-                  <span
-                    className={
-                      l.pago
-                        ? "text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800"
-                        : "text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800"
-                    }
-                  >
-                    {l.pago ? "Pago" : "Pendente"}
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-700">Entregas: {l.qtd}</p>
-                <p className="text-sm text-zinc-700">Taxas: {dinheiro(l.taxas)}</p>
-                <p className="text-sm text-zinc-700">Combustível: {dinheiro(l.combustivel)}</p>
-                <p className="text-sm text-zinc-700">Bônus: {dinheiro(l.bonus)}</p>
-                <p className="mt-2 font-medium">Total: {dinheiro(l.total)}</p>
-                {l.pixChave ? (
-                  <p className="text-sm text-zinc-600 mt-1">
-                    Pix ({l.pixTipo}): {l.pixChave}
-                  </p>
-                ) : (
-                  <p className="text-sm text-zinc-500 mt-1">Pix não cadastrado</p>
-                )}
-                <button
-                  type="button"
-                  disabled={salvandoId === l.id}
-                  onClick={() => marcarPago(l.id, !l.pago)}
-                  className="mt-3 w-full border rounded-lg py-2 text-sm"
+      {linhas.length === 0 ? (
+        <p className="text-stone-600">Ainda não há lançamentos nesta data.</p>
+      ) : (
+        <div className="space-y-4">
+          {linhas.map((l) => (
+            <div key={l.id} className="border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <p className="font-bold">{l.nome}</p>
+                <span
+                  className={
+                    l.pago
+                      ? "text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800"
+                      : "text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800"
+                  }
                 >
-                  {salvandoId === l.id
-                    ? "Salvando..."
-                    : l.pago
-                    ? "Marcar como pendente"
-                    : "Marcar como pago"}
-                </button>
+                  {l.pago ? "Pago" : "Pendente"}
+                </span>
               </div>
-            ))}
-
-            <div className="border-2 rounded-xl p-4">
-              <p className="font-bold mb-2">Total geral do dia</p>
-              <p className="text-sm">Entregas: {geral.qtd}</p>
-              <p className="text-sm">Taxas: {dinheiro(geral.taxas)}</p>
-              <p className="text-sm">Combustível: {dinheiro(geral.combustivel)}</p>
-              <p className="text-sm">Bônus: {dinheiro(geral.bonus)}</p>
-              <p className="mt-2 font-bold">Total: {dinheiro(geral.total)}</p>
-              <p className="text-sm mt-2">Já pago: {dinheiro(geral.pago)}</p>
-              <p className="text-sm">Ainda pendente: {dinheiro(geral.pendente)}</p>
+              <p className="text-sm text-stone-700">Entregas: {l.qtd}</p>
+              <p className="text-sm text-stone-700">Taxas: {dinheiro(l.taxas)}</p>
+              <p className="text-sm text-stone-700">Combustível: {dinheiro(l.combustivel)}</p>
+              <p className="text-sm text-stone-700">Bônus: {dinheiro(l.bonus)}</p>
+              <p className="mt-2 font-medium">Total: {dinheiro(l.total)}</p>
+              {l.pixChave ? (
+                <p className="text-sm text-stone-600 mt-1">
+                  Pix ({l.pixTipo}): {l.pixChave}
+                </p>
+              ) : (
+                <p className="text-sm text-stone-500 mt-1">Pix não cadastrado</p>
+              )}
+              <button
+                type="button"
+                disabled={salvandoId === l.id}
+                onClick={() => marcarPago(l.id, !l.pago)}
+                className="mt-3 w-full border border-stone-300 rounded-lg py-2 text-sm"
+              >
+                {salvandoId === l.id
+                  ? "Salvando..."
+                  : l.pago
+                  ? "Marcar como pendente"
+                  : "Marcar como pago"}
+              </button>
             </div>
+          ))}
+
+          <div className="border-2 border-stone-900 rounded-xl p-4">
+            <p className="font-bold mb-2">Total geral do dia</p>
+            <p className="text-sm">Entregas: {geral.qtd}</p>
+            <p className="text-sm">Taxas: {dinheiro(geral.taxas)}</p>
+            <p className="text-sm">Combustível: {dinheiro(geral.combustivel)}</p>
+            <p className="text-sm">Bônus: {dinheiro(geral.bonus)}</p>
+            <p className="mt-2 font-bold">Total: {dinheiro(geral.total)}</p>
+            <p className="text-sm mt-2">Já pago: {dinheiro(geral.pago)}</p>
+            <p className="text-sm">Ainda pendente: {dinheiro(geral.pendente)}</p>
           </div>
-        )}
-      </div>
-    </main>
+        </div>
+      )}
+    </AppShell>
   );
 }

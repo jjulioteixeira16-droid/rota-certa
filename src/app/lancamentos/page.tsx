@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AppShell from "@/components/AppShell";
 
 type Motoboy = { id: string; name: string; active: boolean };
 type Bairro = { id: string; name: string; fee: number };
@@ -185,7 +186,7 @@ export default function LancamentosPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center bg-[#f4efe6]">
         <p>Carregando...</p>
       </main>
     );
@@ -194,121 +195,112 @@ export default function LancamentosPage() {
   const motoboysAtivos = motoboys.filter((m) => m.active);
 
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-bold">Lançamentos</h1>
-          <a href="/dashboard" className="underline text-sm">
-            Voltar
-          </a>
-        </div>
+    <AppShell title="Lançamentos">
+      <form onSubmit={salvar} className="grid gap-3 mb-8">
+        <label className="text-sm text-stone-600">
+          Data
+          <input
+            type="date"
+            required
+            value={dataRef}
+            onChange={(e) => setDataRef(e.target.value)}
+            className="mt-1 w-full border border-stone-300 rounded-lg px-3 py-2"
+          />
+        </label>
+        <select
+          required
+          value={riderId}
+          onChange={(e) => setRiderId(e.target.value)}
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        >
+          <option value="">Selecione o motoboy</option>
+          {motoboysAtivos.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
 
-        <form onSubmit={salvar} className="grid gap-3 mb-8">
-          <label className="text-sm text-zinc-600">
-            Data
-            <input
-              type="date"
-              required
-              value={dataRef}
-              onChange={(e) => setDataRef(e.target.value)}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
-            />
-          </label>
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        >
+          <option value="entrega">Taxa de entrega</option>
+          <option value="combustivel">Combustível</option>
+          <option value="bonus">Bônus</option>
+        </select>
+
+        {tipo === "entrega" && (
           <select
             required
-            value={riderId}
-            onChange={(e) => setRiderId(e.target.value)}
-            className="border rounded-lg px-3 py-2"
+            value={bairroId}
+            onChange={(e) => aoEscolherBairro(e.target.value)}
+            className="border border-stone-300 rounded-lg px-3 py-2"
           >
-            <option value="">Selecione o motoboy</option>
-            {motoboysAtivos.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
+            <option value="">Selecione o bairro</option>
+            {bairros.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} — R$ {Number(b.fee).toFixed(2).replace(".", ",")}
               </option>
             ))}
           </select>
-
-          <select
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value)}
-            className="border rounded-lg px-3 py-2"
-          >
-            <option value="entrega">Taxa de entrega</option>
-            <option value="combustivel">Combustível</option>
-            <option value="bonus">Bônus</option>
-          </select>
-
-          {tipo === "entrega" && (
-            <select
-              required
-              value={bairroId}
-              onChange={(e) => aoEscolherBairro(e.target.value)}
-              className="border rounded-lg px-3 py-2"
-            >
-              <option value="">Selecione o bairro</option>
-              {bairros.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} — R$ {Number(b.fee).toFixed(2).replace(".", ",")}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <input
-            required
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            placeholder="Valor. Ex: 8,00"
-            className="border rounded-lg px-3 py-2"
-          />
-
-          <input
-            value={obs}
-            onChange={(e) => setObs(e.target.value)}
-            placeholder="Observação (opcional)"
-            className="border rounded-lg px-3 py-2"
-          />
-
-          <button
-            disabled={salvando}
-            className="bg-black text-white rounded-lg py-2"
-          >
-            {salvando ? "Salvando..." : "Lançar"}
-          </button>
-        </form>
-
-        {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
-
-        {lista.length === 0 ? (
-          <p className="text-zinc-600">Nenhum lançamento hoje.</p>
-        ) : (
-          <ul className="divide-y">
-            {lista.map((item) => (
-              <li key={item.id} className="py-3 flex justify-between gap-3">
-                <div>
-                  <p className="font-medium">{nomeMotoboy(item.rider_id)}</p>
-                  <p className="text-sm text-zinc-600">
-                    {tipoLabel(item.type)}
-                    {item.neighborhood_id ? ` · ${nomeBairro(item.neighborhood_id)}` : ""}
-                    {item.notes ? ` · ${item.notes}` : ""}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">
-                    R$ {Number(item.amount).toFixed(2).replace(".", ",")}
-                  </p>
-                  <button
-                    onClick={() => excluir(item.id)}
-                    className="text-sm text-red-600 underline"
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
         )}
-      </div>
-    </main>
+
+        <input
+          required
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          placeholder="Valor. Ex: 8,00"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
+
+        <input
+          value={obs}
+          onChange={(e) => setObs(e.target.value)}
+          placeholder="Observação (opcional)"
+          className="border border-stone-300 rounded-lg px-3 py-2"
+        />
+
+        <button
+          disabled={salvando}
+          className="bg-orange-500 text-white rounded-lg py-2.5 font-medium"
+        >
+          {salvando ? "Salvando..." : "Lançar"}
+        </button>
+      </form>
+
+      {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
+
+      {lista.length === 0 ? (
+        <p className="text-stone-600">Nenhum lançamento nesta data.</p>
+      ) : (
+        <ul className="divide-y divide-stone-200">
+          {lista.map((item) => (
+            <li key={item.id} className="py-3 flex justify-between gap-3">
+              <div>
+                <p className="font-medium">{nomeMotoboy(item.rider_id)}</p>
+                <p className="text-sm text-stone-600">
+                  {tipoLabel(item.type)}
+                  {item.neighborhood_id ? ` · ${nomeBairro(item.neighborhood_id)}` : ""}
+                  {item.notes ? ` · ${item.notes}` : ""}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-medium">
+                  R$ {Number(item.amount).toFixed(2).replace(".", ",")}
+                </p>
+                <button
+                  onClick={() => excluir(item.id)}
+                  className="text-sm text-red-600 underline"
+                >
+                  Excluir
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AppShell>
   );
 }
