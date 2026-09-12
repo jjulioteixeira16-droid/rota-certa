@@ -9,10 +9,15 @@ type Bairro = {
   id: string;
   name: string;
   fee: number;
+  active: boolean;
 };
 
 function normalizarNome(nome: string) {
   return nome.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function dinheiro(n: number) {
+  return `R$ ${Number(n).toFixed(2).replace(".", ",")}`;
 }
 
 export default function BairrosPage() {
@@ -25,17 +30,19 @@ export default function BairrosPage() {
   const [valor, setValor] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
+  const [painelAberto, setPainelAberto] = useState(false);
 
-  function limparFormulario() {
+  function limparCampos(manterAberto = true) {
     setEditandoId(null);
     setNome("");
     setValor("");
+    if (!manterAberto) setPainelAberto(false);
   }
 
   async function carregarBairros(idEmpresa: string) {
     const { data, error } = await supabase
       .from("neighborhoods")
-      .select("id, name, fee")
+      .select("id, name, fee, active")
       .eq("company_id", idEmpresa)
       .order("name");
 
@@ -68,7 +75,6 @@ export default function BairrosPage() {
         .maybeSingle();
 
       const id = perfil?.company_id ?? empresaDona?.id ?? null;
-
       if (!id) {
         router.push("/dashboard");
         return;
@@ -82,12 +88,20 @@ export default function BairrosPage() {
     iniciar();
   }, [router]);
 
+  function abrirNovo() {
+    setEditandoId(null);
+    setNome("");
+    setValor("");
+    setMensagem("");
+    setPainelAberto(true);
+  }
+
   function comecarEdicao(bairro: Bairro) {
     setEditandoId(bairro.id);
     setNome(bairro.name);
     setValor(String(bairro.fee).replace(".", ","));
     setMensagem("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setPainelAberto(true);
   }
 
   async function salvarBairro(e: React.FormEvent) {
@@ -131,6 +145,7 @@ export default function BairrosPage() {
           company_id: empresaId,
           name: nomeLimpo,
           fee,
+          active: true,
         });
 
     setSalvando(false);
@@ -144,7 +159,23 @@ export default function BairrosPage() {
       return;
     }
 
-    limparFormulario();
+    setEditandoId(null);
+    setNome("");
+    setValor("");
+    await carregarBairros(empresaId);
+  }
+
+  async function alternarAtivo(bairro: Bairro) {
+    if (!empresaId) return;
+    const { error } = await supabase
+      .from("neighborhoods")
+      .update({ active: !bairro.active })
+      .eq("id", bairro.id);
+
+    if (error) {
+      setMensagem(error.message);
+      return;
+    }
     await carregarBairros(empresaId);
   }
 
@@ -158,7 +189,7 @@ export default function BairrosPage() {
       setMensagem(error.message);
       return;
     }
-    if (editandoId === id) limparFormulario();
+    if (editandoId === id) limparCampos(true);
     await carregarBairros(empresaId);
   }
 
@@ -170,41 +201,19 @@ export default function BairrosPage() {
     );
   }
 
+  const ativos = bairros.filter((b) => b.active).length;
+
   return (
-    <AppShell title={editandoId ? "Editar bairro" : "Bairros e valores"}>
-      <form onSubmit={salvarBairro} className="grid gap-3 sm:grid-cols-3 mb-6">
-        <input
-          required
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          placeholder="Nome do bairro"
-          className="border border-stone-300 rounded-lg px-3 py-2"
-        />
-        <input
-          required
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder="Valor. Ex: 8,00"
-          className="border border-stone-300 rounded-lg px-3 py-2"
-        />
-        <div className="flex gap-2">
-          <button
-            disabled={salvando}
-            className="flex-1 bg-orange-500 text-white rounded-lg py-2 font-medium"
-          >
-            {salvando ? "Salvando..." : editandoId ? "Salvar" : "Adicionar"}
-          </button>
-          {editandoId && (
-            <button
-              type="button"
-              onClick={limparFormulario}
-              className="border border-stone-300 rounded-lg px-3 py-2"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
+    <AppShell title="Bairros e valores" badge={`${ativos} ativos`}>
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={abrirNovo}
+          className="bg-orange-500 text-white rounded-full w-10 h-10 text-2xl leading-none"
+        >
+          +
+        </button>
+      </div>
 
       {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
@@ -217,12 +226,15 @@ export default function BairrosPage() {
               <div>
                 <p className="font-medium">{bairro.name}</p>
                 <p className="text-sm text-stone-600">
-                  R$ {Number(bairro.fee).toFixed(2).replace(".", ",")}
+                  {dinheiro(bairro.fee)} · {bairro.active ? "Ativo" : "Inativo"}
                 </p>
               </div>
-              <div className="flex gap-3 text-sm">
+              <div className="flex flex-col sm:flex-row gap-2 text-sm">
                 <button onClick={() => comecarEdicao(bairro)} className="underline">
                   Editar
+                </button>
+                <button onClick={() => alternarAtivo(bairro)} className="underline">
+                  {bairro.active ? "Desativar" : "Ativar"}
                 </button>
                 <button
                   onClick={() => excluirBairro(bairro.id)}
@@ -234,6 +246,50 @@ export default function BairrosPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {painelAberto && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">
+                {editandoId ? "Editar bairro" : "Novo bairro"}
+              </h2>
+              <button type="button" onClick={() => limparCampos(false)} className="text-xl px-2">
+                ×
+              </button>
+            </div>
+            <form onSubmit={salvarBairro} className="grid gap-3">
+              <input
+                required
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Nome do bairro"
+                className="border border-stone-300 rounded-lg px-3 py-2"
+              />
+              <input
+                required
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                placeholder="Valor. Ex: 8,00"
+                className="border border-stone-300 rounded-lg px-3 py-2"
+              />
+              <button
+                disabled={salvando}
+                className="bg-orange-500 text-white rounded-lg py-2.5 font-medium"
+              >
+                {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "Adicionar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => limparCampos(false)}
+                className="border border-stone-300 rounded-lg py-2"
+              >
+                Fechar
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </AppShell>
   );

@@ -39,13 +39,15 @@ export default function MotoboysPage() {
   const [pixChave, setPixChave] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
+  const [painelAberto, setPainelAberto] = useState(false);
 
-  function limparFormulario() {
+  function limparCampos(manterAberto = true) {
     setEditandoId(null);
     setNome("");
     setTelefone("");
     setPixTipo(PIX_TIPOS[0]);
     setPixChave("");
+    if (!manterAberto) setPainelAberto(false);
   }
 
   async function carregar(idEmpresa: string) {
@@ -96,13 +98,20 @@ export default function MotoboysPage() {
     iniciar();
   }, [router]);
 
+  function abrirNovo() {
+    limparCampos(true);
+    setMensagem("");
+    setPainelAberto(true);
+  }
+
   function comecarEdicao(m: Motoboy) {
     setEditandoId(m.id);
     setNome(m.name);
     setTelefone(formatarTelefoneBR(m.phone || ""));
     setPixTipo(m.pix_type && PIX_TIPOS.includes(m.pix_type) ? m.pix_type : PIX_TIPOS[0]);
     setPixChave(m.pix_key || "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setMensagem("");
+    setPainelAberto(true);
   }
 
   async function salvar(e: React.FormEvent) {
@@ -134,7 +143,7 @@ export default function MotoboysPage() {
       return;
     }
 
-    limparFormulario();
+    limparCampos(true);
     await carregar(empresaId);
   }
 
@@ -162,7 +171,7 @@ export default function MotoboysPage() {
       setMensagem(error.message);
       return;
     }
-    if (editandoId === id) limparFormulario();
+    if (editandoId === id) limparCampos(true);
     await carregar(empresaId);
   }
 
@@ -174,58 +183,19 @@ export default function MotoboysPage() {
     );
   }
 
-  return (
-    <AppShell title={editandoId ? "Editar motoboy" : "Motoboys"}>
-      <form onSubmit={salvar} className="grid gap-3 mb-6">
-        <input
-          required
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          placeholder="Nome do motoboy"
-          className="border border-stone-300 rounded-lg px-3 py-2"
-        />
-        <input
-          value={telefone}
-          onChange={(e) => setTelefone(formatarTelefoneBR(e.target.value))}
-          placeholder="Telefone (opcional)"
-          className="border border-stone-300 rounded-lg px-3 py-2"
-        />
-        <select
-          value={pixTipo}
-          onChange={(e) => setPixTipo(e.target.value)}
-          className="border border-stone-300 rounded-lg px-3 py-2"
-        >
-          {PIX_TIPOS.map((tipo) => (
-            <option key={tipo} value={tipo}>
-              {tipo}
-            </option>
-          ))}
-        </select>
-        <input
-          value={pixChave}
-          onChange={(e) => setPixChave(e.target.value)}
-          placeholder="Chave Pix (opcional)"
-          className="border border-stone-300 rounded-lg px-3 py-2"
-        />
+  const ativos = lista.filter((m) => m.active).length;
 
-        <div className="flex gap-3">
-          <button
-            disabled={salvando}
-            className="flex-1 bg-orange-500 text-white rounded-lg py-2 font-medium"
-          >
-            {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "Adicionar"}
-          </button>
-          {editandoId && (
-            <button
-              type="button"
-              onClick={limparFormulario}
-              className="border border-stone-300 rounded-lg px-4 py-2"
-            >
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
+  return (
+    <AppShell title="Motoboys" badge={`${ativos} ativos`}>
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={abrirNovo}
+          className="bg-orange-500 text-white rounded-full w-10 h-10 text-2xl leading-none"
+        >
+          +
+        </button>
+      </div>
 
       {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
@@ -258,6 +228,66 @@ export default function MotoboysPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {painelAberto && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">
+                {editandoId ? "Editar motoboy" : "Novo motoboy"}
+              </h2>
+              <button type="button" onClick={() => limparCampos(false)} className="text-xl px-2">
+                ×
+              </button>
+            </div>
+            <form onSubmit={salvar} className="grid gap-3">
+              <input
+                required
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Nome do motoboy"
+                className="border border-stone-300 rounded-lg px-3 py-2"
+              />
+              <input
+                value={telefone}
+                onChange={(e) => setTelefone(formatarTelefoneBR(e.target.value))}
+                placeholder="Telefone (opcional)"
+                className="border border-stone-300 rounded-lg px-3 py-2"
+              />
+              <select
+                value={pixTipo}
+                onChange={(e) => setPixTipo(e.target.value)}
+                className="border border-stone-300 rounded-lg px-3 py-2"
+              >
+                {PIX_TIPOS.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={pixChave}
+                onChange={(e) => setPixChave(e.target.value)}
+                placeholder="Chave Pix (opcional)"
+                className="border border-stone-300 rounded-lg px-3 py-2"
+              />
+              <button
+                disabled={salvando}
+                className="bg-orange-500 text-white rounded-lg py-2.5 font-medium"
+              >
+                {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "Adicionar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => limparCampos(false)}
+                className="border border-stone-300 rounded-lg py-2"
+              >
+                Fechar
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </AppShell>
   );
