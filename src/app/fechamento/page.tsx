@@ -46,6 +46,7 @@ export default function FechamentoPage() {
   const [mensagem, setMensagem] = useState("");
   const [dataRef, setDataRef] = useState(hojeISO());
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
 
   async function carregar(idEmpresa: string, data: string) {
     const [r, e, p] = await Promise.all([
@@ -158,6 +159,16 @@ export default function FechamentoPage() {
     setSalvandoId(null);
   }
 
+  async function copiarPix(id: string, chave: string) {
+    try {
+      await navigator.clipboard.writeText(chave);
+      setCopiadoId(id);
+      setTimeout(() => setCopiadoId(null), 2000);
+    } catch {
+      setMensagem("Não deu para copiar. Selecione a chave e copie na mão.");
+    }
+  }
+
   if (carregando) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#f4efe6]">
@@ -186,7 +197,8 @@ export default function FechamentoPage() {
         nome: m.name,
         pixTipo: m.pix_type,
         pixChave: m.pix_key,
-        qtd: entregas.length,
+        qtd: itens.length,
+        qtdEntregas: entregas.length,
         taxas,
         combustivel,
         bonus,
@@ -194,25 +206,21 @@ export default function FechamentoPage() {
         pago,
       };
     })
-    .filter((l) => l.qtd > 0 || l.combustivel > 0 || l.bonus > 0);
+    .filter((l) => l.qtd > 0);
 
   const geral = linhas.reduce(
     (acc, l) => ({
-      qtd: acc.qtd + l.qtd,
-      taxas: acc.taxas + l.taxas,
-      combustivel: acc.combustivel + l.combustivel,
-      bonus: acc.bonus + l.bonus,
       total: acc.total + l.total,
       pago: acc.pago + (l.pago ? l.total : 0),
       pendente: acc.pendente + (l.pago ? 0 : l.total),
     }),
-    { qtd: 0, taxas: 0, combustivel: 0, bonus: 0, total: 0, pago: 0, pendente: 0 }
+    { total: 0, pago: 0, pendente: 0 }
   );
 
   return (
     <AppShell title="Fechamento">
-      <label className="block text-sm text-stone-600 mb-6">
-        Data
+      <label className="block text-sm text-stone-600 mb-4">
+        Visualizando o dia
         <input
           type="date"
           value={dataRef}
@@ -223,14 +231,34 @@ export default function FechamentoPage() {
 
       {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
+        <div className="border border-stone-200 rounded-xl p-3">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Total do dia</p>
+          <p className="text-lg sm:text-xl font-bold mt-1">{dinheiro(geral.total)}</p>
+        </div>
+        <div className="border border-stone-200 rounded-xl p-3">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Pago</p>
+          <p className="text-lg sm:text-xl font-bold mt-1 text-green-700">{dinheiro(geral.pago)}</p>
+        </div>
+        <div className="border border-stone-200 rounded-xl p-3">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Pendente</p>
+          <p className="text-lg sm:text-xl font-bold mt-1 text-amber-700">{dinheiro(geral.pendente)}</p>
+        </div>
+      </div>
+
       {linhas.length === 0 ? (
         <p className="text-stone-600">Ainda não há lançamentos nesta data.</p>
       ) : (
         <div className="space-y-4">
           {linhas.map((l) => (
-            <div key={l.id} className="border rounded-xl p-4">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <p className="font-bold">{l.nome}</p>
+            <div key={l.id} className="border border-stone-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="font-bold">{l.nome}</p>
+                  <p className="text-sm text-stone-500">
+                    {l.qtd} {l.qtd === 1 ? "lançamento" : "lançamentos"}
+                  </p>
+                </div>
                 <span
                   className={
                     l.pago
@@ -241,23 +269,55 @@ export default function FechamentoPage() {
                   {l.pago ? "Pago" : "Pendente"}
                 </span>
               </div>
-              <p className="text-sm text-stone-700">Entregas: {l.qtd}</p>
-              <p className="text-sm text-stone-700">Taxas: {dinheiro(l.taxas)}</p>
-              <p className="text-sm text-stone-700">Combustível: {dinheiro(l.combustivel)}</p>
-              <p className="text-sm text-stone-700">Bônus: {dinheiro(l.bonus)}</p>
-              <p className="mt-2 font-medium">Total: {dinheiro(l.total)}</p>
-              {l.pixChave ? (
-                <p className="text-sm text-stone-600 mt-1">
-                  Pix ({l.pixTipo}): {l.pixChave}
-                </p>
-              ) : (
-                <p className="text-sm text-stone-500 mt-1">Pix não cadastrado</p>
-              )}
+
+              <div className="text-sm space-y-1 mb-3">
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Taxas de entrega</span>
+                  <span>{dinheiro(l.taxas)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Combustível</span>
+                  <span>{dinheiro(l.combustivel)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Bônus</span>
+                  <span>{dinheiro(l.bonus)}</span>
+                </div>
+                <div className="flex justify-between pt-2 font-semibold">
+                  <span>Total a pagar</span>
+                  <span className="text-orange-600">{dinheiro(l.total)}</span>
+                </div>
+              </div>
+
+              <div className="border border-stone-200 rounded-lg p-3 mb-3">
+                {l.pixChave ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-stone-500">Chave Pix · {l.pixTipo || "Pix"}</p>
+                      <p className="text-sm break-all">{l.pixChave}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copiarPix(l.id, l.pixChave || "")}
+                      className="shrink-0 border border-stone-300 rounded-lg px-3 py-1.5 text-sm"
+                    >
+                      {copiadoId === l.id ? "Copiado" : "Copiar"}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-stone-500">Pix não cadastrado</p>
+                )}
+              </div>
+
               <button
                 type="button"
                 disabled={salvandoId === l.id}
                 onClick={() => marcarPago(l.id, !l.pago)}
-                className="mt-3 w-full border border-stone-300 rounded-lg py-2 text-sm"
+                className={
+                  l.pago
+                    ? "w-full border border-stone-300 rounded-lg py-2.5 text-sm font-medium"
+                    : "w-full bg-orange-500 text-white rounded-lg py-2.5 text-sm font-medium"
+                }
               >
                 {salvandoId === l.id
                   ? "Salvando..."
@@ -267,17 +327,6 @@ export default function FechamentoPage() {
               </button>
             </div>
           ))}
-
-          <div className="border-2 border-stone-900 rounded-xl p-4">
-            <p className="font-bold mb-2">Total geral do dia</p>
-            <p className="text-sm">Entregas: {geral.qtd}</p>
-            <p className="text-sm">Taxas: {dinheiro(geral.taxas)}</p>
-            <p className="text-sm">Combustível: {dinheiro(geral.combustivel)}</p>
-            <p className="text-sm">Bônus: {dinheiro(geral.bonus)}</p>
-            <p className="mt-2 font-bold">Total: {dinheiro(geral.total)}</p>
-            <p className="text-sm mt-2">Já pago: {dinheiro(geral.pago)}</p>
-            <p className="text-sm">Ainda pendente: {dinheiro(geral.pendente)}</p>
-          </div>
         </div>
       )}
     </AppShell>
