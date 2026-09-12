@@ -4,11 +4,23 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type Motoboy = { id: string; name: string };
+type Motoboy = {
+  id: string;
+  name: string;
+  pix_type: string | null;
+  pix_key: string | null;
+};
+
 type Lancamento = {
   rider_id: string;
   type: string;
   amount: number;
+};
+
+type Payout = {
+  id: string;
+  rider_id: string;
+  paid: boolean;
 };
 
 function hojeISO() {
@@ -26,10 +38,43 @@ function dinheiro(n: number) {
 export default function FechamentoPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
   const [mensagem, setMensagem] = useState("");
   const [dataRef, setDataRef] = useState(hojeISO());
+  const [salvandoId, setSalvandoId] = useState<string | null>(null);
+
+  async function carregar(idEmpresa: string, data: string) {
+    const [r, e, p] = await Promise.all([
+      supabase
+        .from("riders")
+        .select("id, name, pix_type, pix_key")
+        .eq("company_id", idEmpresa)
+        .order("name"),
+      supabase
+        .from("entries")
+        .select("rider_id, type, amount")
+        .eq("company_id", idEmpresa)
+        .eq("entry_date", data),
+      supabase
+        .from("payouts")
+        .select("id, rider_id, paid")
+        .eq("company_id", idEmpresa)
+        .eq("payout_date", data),
+    ]);
+
+    if (r.error || e.error || p.error) {
+      setMensagem(r.error?.message || e.error?.message || p.error?.message || "");
+      return;
+    }
+
+    setMotoboys(r.data ?? []);
+    setLancamentos(e.data ?? []);
+    setPayouts(p.data ?? []);
+    setMensagem("");
+  }
 
   useEffect(() => {
     async function iniciar() {
@@ -57,27 +102,60 @@ export default function FechamentoPage() {
         return;
       }
 
-      const [r, e] = await Promise.all([
-        supabase.from("riders").select("id, name").eq("company_id", id).order("name"),
-        supabase
-          .from("entries")
-          .select("rider_id, type, amount")
-          .eq("company_id", id)
-          .eq("entry_date", dataRef),
-      ]);
-
-      if (r.error || e.error) {
-        setMensagem(r.error?.message || e.error?.message || "");
-      } else {
-        setMotoboys(r.data ?? []);
-        setLancamentos(e.data ?? []);
-      }
-
+      setEmpresaId(id);
+      await carregar(id, dataRef);
       setCarregando(false);
     }
 
     iniciar();
-  }, [router, dataRef]);
+  }, [router]);
+
+  useEffect(() => {
+    if (!empresaId) return;
+    setCarregando(true);
+    carregar(empresaId, dataRef).finally(() => setCarregando(false));
+  }, [dataRef, empresaId]);
+
+  async function marcarPago(riderId: string, pagoAgora: boolean) {
+    if (!empresaId) return;
+    setSalvandoId(riderId);
+    setMensagem("");
+
+    const existente = payouts.find((p) => p.rider_id === riderId);
+
+    if (existente) {
+      const { error } = await supabase
+        .from("payouts")
+        .update({
+          paid: pagoAgora,
+          paid_at: pagoAgora ? new Date().toISOString() : null,
+        })
+        .eq("id", existente.id);
+
+      if (error) {
+        setMensagem(error.message);
+        setSalvandoId(null);
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("payouts").insert({
+        company_id: empresaId,
+        rider_id: riderId,
+        payout_date: dataRef,
+        paid: pagoAgora,
+        paid_at: pagoAgora ? new Date().toISOString() : null,
+      });
+
+      if (error) {
+        setMensagem(error.message);
+        setSalvandoId(null);
+        return;
+      }
+    }
+
+    await carregar(empresaId, dataRef);
+    setSalvandoId(null);
+  }
 
   if (carregando) {
     return (
@@ -99,15 +177,20 @@ export default function FechamentoPage() {
         .reduce((acc, l) => acc + Number(l.amount), 0);
       const taxas = entregas.reduce((acc, l) => acc + Number(l.amount), 0);
       const total = taxas + combustivel + bonus;
+      const payout = payouts.find((p) => p.rider_id === m.id);
+      const pago = payout?.paid === true;
 
       return {
         id: m.id,
         nome: m.name,
+        pixTipo: m.pix_type,
+        pixChave: m.pix_key,
         qtd: entregas.length,
         taxas,
         combustivel,
         bonus,
         total,
+        pago,
       };
     })
     .filter((l) => l.qtd > 0 || l.combustivel > 0 || l.bonus > 0);
@@ -119,8 +202,10 @@ export default function FechamentoPage() {
       combustivel: acc.combustivel + l.combustivel,
       bonus: acc.bonus + l.bonus,
       total: acc.total + l.total,
+      pago: acc.pago + (l.pago ? l.total : 0),
+      pendente: acc.pendente + (l.pago ? 0 : l.total),
     }),
-    { qtd: 0, taxas: 0, combustivel: 0, bonus: 0, total: 0 }
+    { qtd: 0, taxas: 0, combustivel: 0, bonus: 0, total: 0, pago: 0, pendente: 0 }
   );
 
   return (
@@ -138,10 +223,7 @@ export default function FechamentoPage() {
           <input
             type="date"
             value={dataRef}
-            onChange={(e) => {
-              setCarregando(true);
-              setDataRef(e.target.value);
-            }}
+            onChange={(e) => setDataRef(e.target.value)}
             className="mt-1 w-full max-w-xs border rounded-lg px-3 py-2"
           />
         </label>
@@ -149,17 +231,47 @@ export default function FechamentoPage() {
         {mensagem && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
 
         {linhas.length === 0 ? (
-          <p className="text-zinc-600">Ainda não há lançamentos hoje.</p>
+          <p className="text-zinc-600">Ainda não há lançamentos nesta data.</p>
         ) : (
           <div className="space-y-4">
             {linhas.map((l) => (
               <div key={l.id} className="border rounded-xl p-4">
-                <p className="font-bold mb-2">{l.nome}</p>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <p className="font-bold">{l.nome}</p>
+                  <span
+                    className={
+                      l.pago
+                        ? "text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800"
+                        : "text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800"
+                    }
+                  >
+                    {l.pago ? "Pago" : "Pendente"}
+                  </span>
+                </div>
                 <p className="text-sm text-zinc-700">Entregas: {l.qtd}</p>
                 <p className="text-sm text-zinc-700">Taxas: {dinheiro(l.taxas)}</p>
                 <p className="text-sm text-zinc-700">Combustível: {dinheiro(l.combustivel)}</p>
                 <p className="text-sm text-zinc-700">Bônus: {dinheiro(l.bonus)}</p>
                 <p className="mt-2 font-medium">Total: {dinheiro(l.total)}</p>
+                {l.pixChave ? (
+                  <p className="text-sm text-zinc-600 mt-1">
+                    Pix ({l.pixTipo}): {l.pixChave}
+                  </p>
+                ) : (
+                  <p className="text-sm text-zinc-500 mt-1">Pix não cadastrado</p>
+                )}
+                <button
+                  type="button"
+                  disabled={salvandoId === l.id}
+                  onClick={() => marcarPago(l.id, !l.pago)}
+                  className="mt-3 w-full border rounded-lg py-2 text-sm"
+                >
+                  {salvandoId === l.id
+                    ? "Salvando..."
+                    : l.pago
+                    ? "Marcar como pendente"
+                    : "Marcar como pago"}
+                </button>
               </div>
             ))}
 
@@ -170,6 +282,8 @@ export default function FechamentoPage() {
               <p className="text-sm">Combustível: {dinheiro(geral.combustivel)}</p>
               <p className="text-sm">Bônus: {dinheiro(geral.bonus)}</p>
               <p className="mt-2 font-bold">Total: {dinheiro(geral.total)}</p>
+              <p className="text-sm mt-2">Já pago: {dinheiro(geral.pago)}</p>
+              <p className="text-sm">Ainda pendente: {dinheiro(geral.pendente)}</p>
             </div>
           </div>
         )}
