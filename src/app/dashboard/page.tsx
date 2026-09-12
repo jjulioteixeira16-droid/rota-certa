@@ -5,16 +5,54 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AppShell from "@/components/AppShell";
 
+type Lancamento = {
+  rider_id: string;
+  type: string;
+  amount: number;
+};
+
+type Motoboy = {
+  id: string;
+  name: string;
+};
+
+type Payout = {
+  rider_id: string;
+  paid: boolean;
+};
+
+function hojeISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dataPorExtenso() {
+  return new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function dinheiro(n: number) {
+  return `R$ ${n.toFixed(2).replace(".", ",")}`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [nomeEmpresa, setNomeEmpresa] = useState("");
-  const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [precisaEmpresa, setPrecisaEmpresa] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
+  const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
+  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
 
   useEffect(() => {
     async function iniciar() {
@@ -35,37 +73,55 @@ export default function DashboardPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (perfil?.company_id) {
-        setEmpresaId(perfil.company_id);
-        const empresa = perfil.companies as { name?: string } | { name?: string }[] | null;
+      let empresaId = perfil?.company_id as string | undefined;
+      if (empresaId) {
+        const empresa = perfil?.companies as { name?: string } | { name?: string }[] | null;
         const nome = Array.isArray(empresa) ? empresa[0]?.name : empresa?.name;
         setNomeEmpresa(nome ?? "");
-        setPrecisaEmpresa(false);
+      } else {
+        const { data: empresaDona } = await supabase
+          .from("companies")
+          .select("id, name")
+          .eq("owner_id", user.id)
+          .maybeSingle();
+
+        if (empresaDona) {
+          await supabase.from("profiles").insert({
+            id: user.id,
+            company_id: empresaDona.id,
+            full_name: user.email ?? "Dono",
+            role: "owner",
+          });
+          empresaId = empresaDona.id;
+          setNomeEmpresa(empresaDona.name);
+        }
+      }
+
+      if (!empresaId) {
+        setPrecisaEmpresa(true);
         setCarregando(false);
         return;
       }
 
-      const { data: empresaDona } = await supabase
-        .from("companies")
-        .select("id, name")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      const dataHoje = hojeISO();
+      const [r, e, p] = await Promise.all([
+        supabase.from("riders").select("id, name").eq("company_id", empresaId).order("name"),
+        supabase
+          .from("entries")
+          .select("rider_id, type, amount")
+          .eq("company_id", empresaId)
+          .eq("entry_date", dataHoje),
+        supabase
+          .from("payouts")
+          .select("rider_id, paid")
+          .eq("company_id", empresaId)
+          .eq("payout_date", dataHoje),
+      ]);
 
-      if (empresaDona) {
-        await supabase.from("profiles").insert({
-          id: user.id,
-          company_id: empresaDona.id,
-          full_name: user.email ?? "Dono",
-          role: "owner",
-        });
-        setEmpresaId(empresaDona.id);
-        setNomeEmpresa(empresaDona.name);
-        setPrecisaEmpresa(false);
-        setCarregando(false);
-        return;
-      }
-
-      setPrecisaEmpresa(true);
+      setMotoboys(r.data ?? []);
+      setLancamentos(e.data ?? []);
+      setPayouts(p.data ?? []);
+      setPrecisaEmpresa(false);
       setCarregando(false);
     }
 
@@ -108,8 +164,7 @@ export default function DashboardPage() {
       return;
     }
 
-    setEmpresaId(empresa.id);
-    setPrecisaEmpresa(false);
+    window.location.reload();
   }
 
   async function sair() {
@@ -155,30 +210,117 @@ export default function DashboardPage() {
     );
   }
 
+  const qtdEntregas = lancamentos.filter((l) => l.type === "entrega").length;
+  const taxas = lancamentos
+    .filter((l) => l.type === "entrega")
+    .reduce((acc, l) => acc + Number(l.amount), 0);
+  const combustivel = lancamentos
+    .filter((l) => l.type === "combustivel")
+    .reduce((acc, l) => acc + Number(l.amount), 0);
+  const bonus = lancamentos
+    .filter((l) => l.type === "bonus")
+    .reduce((acc, l) => acc + Number(l.amount), 0);
+  const total = taxas + combustivel + bonus;
+
+  const porMotoboy = motoboys
+    .map((m) => {
+      const itens = lancamentos.filter((l) => l.rider_id === m.id);
+      const soma = itens.reduce((acc, l) => acc + Number(l.amount), 0);
+      const pago = payouts.some((p) => p.rider_id === m.id && p.paid);
+      return {
+        id: m.id,
+        nome: m.name,
+        qtd: itens.length,
+        total: soma,
+        pago,
+      };
+    })
+    .filter((m) => m.qtd > 0);
+
+  const totalPago = porMotoboy
+    .filter((m) => m.pago)
+    .reduce((acc, m) => acc + m.total, 0);
+  const totalPendente = total - totalPago;
+
   return (
     <AppShell title="Início">
-      <p className="text-stone-600 mb-6">
-        Empresa: <strong>{nomeEmpresa || "—"}</strong>
-        <br />
-        Usuário: <strong>{email}</strong>
+      <p className="text-stone-600 -mt-2 mb-1">
+        {nomeEmpresa || "Empresa"} · {email}
       </p>
+      <p className="text-sm text-stone-500 mb-6 capitalize">{dataPorExtenso()}</p>
 
-      <div className="grid sm:grid-cols-2 gap-3 mb-6">
-        <a href="/bairros" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
-          <p className="font-semibold">Bairros e valores</p>
-          <p className="text-sm text-stone-500">Taxa de cada região</p>
+      <p className="text-sm font-medium text-stone-500 mb-2">Resumo do dia</p>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="border border-stone-200 rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Entregas</p>
+          <p className="text-2xl font-bold mt-1">{qtdEntregas}</p>
+        </div>
+        <div className="border border-stone-200 rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Total a pagar</p>
+          <p className="text-2xl font-bold mt-1">{dinheiro(total)}</p>
+        </div>
+        <div className="border border-stone-200 rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Combustível</p>
+          <p className="text-2xl font-bold mt-1">{dinheiro(combustivel)}</p>
+        </div>
+        <div className="border border-stone-200 rounded-xl p-4">
+          <p className="text-xs uppercase tracking-wide text-stone-500">Bônus</p>
+          <p className="text-2xl font-bold mt-1">{dinheiro(bonus)}</p>
+        </div>
+      </div>
+
+      <p className="text-sm font-medium text-stone-500 mb-2">Por motoboy</p>
+      {porMotoboy.length === 0 ? (
+        <p className="text-stone-600 mb-6">Ainda não há lançamentos hoje.</p>
+      ) : (
+        <div className="space-y-2 mb-6">
+          {porMotoboy.map((m) => (
+            <div
+              key={m.id}
+              className="border border-stone-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3"
+            >
+              <div>
+                <p className="font-semibold">{m.nome}</p>
+                <p className="text-sm text-stone-500">
+                  {m.qtd} {m.qtd === 1 ? "lançamento" : "lançamentos"}
+                  {" · "}
+                  {m.pago ? "Pago" : "Pendente"}
+                </p>
+              </div>
+              <p className="font-semibold">{dinheiro(m.total)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border border-stone-200 rounded-xl p-4 mb-6">
+        <p className="text-sm font-medium text-stone-500 mb-2">Fechamento do dia</p>
+        <div className="flex justify-between text-sm py-1">
+          <span>Total</span>
+          <span className="font-medium">{dinheiro(total)}</span>
+        </div>
+        <div className="flex justify-between text-sm py-1">
+          <span>Pago</span>
+          <span className="font-medium text-green-700">{dinheiro(totalPago)}</span>
+        </div>
+        <div className="flex justify-between text-sm py-1">
+          <span>Pendente</span>
+          <span className="font-medium text-amber-700">{dinheiro(totalPendente)}</span>
+        </div>
+      </div>
+
+      <div className="grid gap-3 mb-6">
+        <a
+          href="/lancamentos"
+          className="bg-orange-500 text-white rounded-xl py-3 text-center font-medium"
+        >
+          + Lançar entrega
         </a>
-        <a href="/motoboys" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
-          <p className="font-semibold">Motoboys</p>
-          <p className="text-sm text-stone-500">Cadastro, Pix e status</p>
-        </a>
-        <a href="/lancamentos" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
-          <p className="font-semibold">Lançamentos</p>
-          <p className="text-sm text-stone-500">Entrega, combustível e bônus</p>
-        </a>
-        <a href="/fechamento" className="border border-stone-200 rounded-xl p-4 hover:border-orange-400">
-          <p className="font-semibold">Fechamento do dia</p>
-          <p className="text-sm text-stone-500">Totais e marcar como pago</p>
+        <a
+          href="/fechamento"
+          className="border border-stone-300 rounded-xl py-3 text-center font-medium"
+        >
+          Fechamento do dia
         </a>
       </div>
 
