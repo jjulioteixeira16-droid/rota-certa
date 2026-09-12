@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import AppShell from "@/components/AppShell";
 
 type Motoboy = { id: string; name: string; active: boolean };
-type Bairro = { id: string; name: string; fee: number };
+type Bairro = { id: string; name: string; fee: number; active?: boolean };
 type Lancamento = {
   id: string;
   type: string;
@@ -71,7 +71,7 @@ export default function LancamentosPage() {
         .order("name"),
       supabase
         .from("neighborhoods")
-        .select("id, name, fee")
+        .select("id, name, fee, active")
         .eq("company_id", idEmpresa)
         .order("name"),
       supabase
@@ -447,7 +447,7 @@ export default function LancamentosPage() {
                     className="mt-1 w-full border border-stone-300 rounded-lg px-3 py-2"
                   >
                     <option value="">Selecione o bairro</option>
-                    {bairros.map((b) => (
+                    {bairros.filter((b) => b.active !== false).map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name} — {dinheiro(b.fee)}
                       </option>
