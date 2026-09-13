@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/motoboys", label: "Motoboys" },
   { href: "/lancamentos", label: "Lançamentos" },
   { href: "/fechamento", label: "Fechamento" },
+  { href: "/relatorio", label: "Relatório" },
 ];
 
 export default function AppShell({
