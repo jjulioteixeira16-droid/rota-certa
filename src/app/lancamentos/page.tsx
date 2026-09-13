@@ -251,6 +251,7 @@ export default function LancamentosPage() {
         .from("entries")
         .select("rider_id, entry_date")
         .eq("id", editandoId)
+        .eq("company_id", empresaId)
         .maybeSingle();
 
       if (erroOriginal) {
