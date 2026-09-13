@@ -69,6 +69,10 @@ export default function LancamentosPage() {
   const [mensagem, setMensagem] = useState("");
   const [painelAberto, setPainelAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [origemEdicao, setOrigemEdicao] = useState<{
+    rider_id: string;
+    entry_date: string;
+  } | null>(null);
 
   function fechamentoPagoNaTela(motoboyId: string) {
     return payouts.some((p) => p.rider_id === motoboyId && p.paid === true);
@@ -184,6 +188,7 @@ export default function LancamentosPage() {
 
   function abrirNovo() {
     setEditandoId(null);
+    setOrigemEdicao(null);
     setObs("");
     if (tipo === "combustivel" || tipo === "bonus") {
       setValor("");
@@ -195,6 +200,7 @@ export default function LancamentosPage() {
   function fecharPainel() {
     setPainelAberto(false);
     setEditandoId(null);
+    setOrigemEdicao(null);
     setMensagem("");
   }
 
@@ -205,6 +211,10 @@ export default function LancamentosPage() {
     }
 
     setEditandoId(item.id);
+    setOrigemEdicao({
+      rider_id: item.rider_id,
+      entry_date: item.entry_date,
+    });
     setRiderId(item.rider_id);
     setTipo(item.type);
     setBairroId(item.neighborhood_id || "");
@@ -236,8 +246,39 @@ export default function LancamentosPage() {
       return;
     }
 
-    const pagoAgora = await verificarFechamentoPago(empresaId, riderId, dataRef);
-    if (pagoAgora) {
+    if (editandoId) {
+      const { data: original, error: erroOriginal } = await supabase
+        .from("entries")
+        .select("rider_id, entry_date")
+        .eq("id", editandoId)
+        .maybeSingle();
+
+      if (erroOriginal) {
+        setMensagem(erroOriginal.message);
+        setSalvando(false);
+        return;
+      }
+
+      const riderOrigem = original?.rider_id ?? origemEdicao?.rider_id;
+      const dataOrigem = original?.entry_date ?? origemEdicao?.entry_date;
+
+      if (riderOrigem && dataOrigem) {
+        const origemPaga = await verificarFechamentoPago(
+          empresaId,
+          riderOrigem,
+          dataOrigem
+        );
+        if (origemPaga) {
+          setMensagem(MSG_FECHAMENTO_PAGO);
+          setSalvando(false);
+          await carregarTudo(empresaId);
+          return;
+        }
+      }
+    }
+
+    const destinoPago = await verificarFechamentoPago(empresaId, riderId, dataRef);
+    if (destinoPago) {
       setMensagem(MSG_FECHAMENTO_PAGO);
       setSalvando(false);
       await carregarTudo(empresaId);
@@ -266,6 +307,7 @@ export default function LancamentosPage() {
     }
 
     setEditandoId(null);
+    setOrigemEdicao(null);
     setObs("");
     if (tipo === "combustivel" || tipo === "bonus") {
       setValor("");
