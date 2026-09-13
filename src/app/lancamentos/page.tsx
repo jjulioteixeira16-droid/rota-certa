@@ -17,6 +17,13 @@ type Lancamento = {
   neighborhood_id: string | null;
   created_at?: string;
 };
+type Payout = {
+  rider_id: string;
+  paid: boolean;
+};
+
+const MSG_FECHAMENTO_PAGO =
+  "Este fechamento já foi pago. Desmarque o pagamento no Fechamento para alterar os lançamentos.";
 
 function hojeISO() {
   const d = new Date();
@@ -51,6 +58,7 @@ export default function LancamentosPage() {
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [bairros, setBairros] = useState<Bairro[]>([]);
   const [lista, setLista] = useState<Lancamento[]>([]);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
   const [riderId, setRiderId] = useState("");
   const [tipo, setTipo] = useState("entrega");
   const [bairroId, setBairroId] = useState("");
@@ -62,8 +70,35 @@ export default function LancamentosPage() {
   const [painelAberto, setPainelAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
+  function fechamentoPagoNaTela(motoboyId: string) {
+    return payouts.some((p) => p.rider_id === motoboyId && p.paid === true);
+  }
+
+  async function verificarFechamentoPago(
+    idEmpresa: string,
+    motoboyId: string,
+    dataLancamento: string
+  ) {
+    if (!motoboyId || !dataLancamento) return false;
+
+    const { data: payout, error } = await supabase
+      .from("payouts")
+      .select("paid")
+      .eq("company_id", idEmpresa)
+      .eq("rider_id", motoboyId)
+      .eq("payout_date", dataLancamento)
+      .maybeSingle();
+
+    if (error) {
+      setMensagem(error.message);
+      return true;
+    }
+
+    return payout?.paid === true;
+  }
+
   async function carregarTudo(idEmpresa: string) {
-    const [r, b, e] = await Promise.all([
+    const [r, b, e, p] = await Promise.all([
       supabase
         .from("riders")
         .select("id, name, active")
@@ -80,16 +115,24 @@ export default function LancamentosPage() {
         .eq("company_id", idEmpresa)
         .eq("entry_date", dataRef)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("payouts")
+        .select("rider_id, paid")
+        .eq("company_id", idEmpresa)
+        .eq("payout_date", dataRef),
     ]);
 
-    if (r.error || b.error || e.error) {
-      setMensagem(r.error?.message || b.error?.message || e.error?.message || "");
+    if (r.error || b.error || e.error || p.error) {
+      setMensagem(
+        r.error?.message || b.error?.message || e.error?.message || p.error?.message || ""
+      );
       return;
     }
 
     setMotoboys(r.data ?? []);
     setBairros(b.data ?? []);
     setLista(e.data ?? []);
+    setPayouts(p.data ?? []);
   }
 
   useEffect(() => {
@@ -156,6 +199,11 @@ export default function LancamentosPage() {
   }
 
   function comecarEdicao(item: Lancamento) {
+    if (fechamentoPagoNaTela(item.rider_id)) {
+      setMensagem(MSG_FECHAMENTO_PAGO);
+      return;
+    }
+
     setEditandoId(item.id);
     setRiderId(item.rider_id);
     setTipo(item.type);
@@ -179,6 +227,20 @@ export default function LancamentosPage() {
     if (Number.isNaN(amount)) {
       setMensagem("Digite um valor válido.");
       setSalvando(false);
+      return;
+    }
+
+    if (!riderId) {
+      setMensagem("Selecione o motoboy.");
+      setSalvando(false);
+      return;
+    }
+
+    const pagoAgora = await verificarFechamentoPago(empresaId, riderId, dataRef);
+    if (pagoAgora) {
+      setMensagem(MSG_FECHAMENTO_PAGO);
+      setSalvando(false);
+      await carregarTudo(empresaId);
       return;
     }
 
@@ -213,6 +275,26 @@ export default function LancamentosPage() {
 
   async function excluir(id: string) {
     if (!empresaId) return;
+
+    const item = lista.find((l) => l.id === id);
+    if (!item) return;
+
+    if (fechamentoPagoNaTela(item.rider_id)) {
+      setMensagem(MSG_FECHAMENTO_PAGO);
+      return;
+    }
+
+    const pagoAgora = await verificarFechamentoPago(
+      empresaId,
+      item.rider_id,
+      item.entry_date
+    );
+    if (pagoAgora) {
+      setMensagem(MSG_FECHAMENTO_PAGO);
+      await carregarTudo(empresaId);
+      return;
+    }
+
     const ok = window.confirm("Excluir este lançamento?");
     if (!ok) return;
 
@@ -264,6 +346,8 @@ export default function LancamentosPage() {
       return { id: m.id, nome: m.name, qtd: itens.length, total: soma };
     })
     .filter((m) => m.qtd > 0);
+
+  const motoboySelecionadoPago = riderId ? fechamentoPagoNaTela(riderId) : false;
 
   return (
     <AppShell title="Lançamentos">
@@ -317,6 +401,7 @@ export default function LancamentosPage() {
             <div key={m.id} className="flex justify-between px-4 py-2 text-sm">
               <span>
                 {m.nome} · {m.qtd} {m.qtd === 1 ? "lançamento" : "lançamentos"}
+                {fechamentoPagoNaTela(m.id) ? " · Fechamento pago" : ""}
               </span>
               <span className="font-medium">{dinheiro(m.total)}</span>
             </div>
@@ -335,36 +420,59 @@ export default function LancamentosPage() {
         </button>
       </div>
 
+      {mensagem && !painelAberto && <p className="text-sm text-red-600 mb-4">{mensagem}</p>}
+
       {lista.length === 0 ? (
         <p className="text-stone-600 mb-24">Nenhum lançamento nesta data.</p>
       ) : (
         <ul className="space-y-2 mb-24">
-          {lista.map((item) => (
-            <li key={item.id} className="border border-stone-200 rounded-xl p-4 flex justify-between gap-3">
-              <div>
-                <p className="font-medium">
-                  {nomeMotoboy(item.rider_id)}
-                  {item.type === "entrega" && item.neighborhood_id
-                    ? ` · ${nomeBairro(item.neighborhood_id)}`
-                    : ` · ${tipoLabel(item.type)}`}
-                </p>
-                <p className="text-sm text-stone-500">
-                  {hora(item.created_at)}
-                  {hora(item.created_at) ? " · " : ""}
-                  {dinheiro(item.amount)}
-                  {item.notes ? ` · ${item.notes}` : ""}
-                </p>
-              </div>
-              <div className="flex gap-3 text-sm items-start">
-                <button onClick={() => comecarEdicao(item)} className="underline">
-                  Editar
-                </button>
-                <button onClick={() => excluir(item.id)} className="text-red-600 underline">
-                  Excluir
-                </button>
-              </div>
-            </li>
-          ))}
+          {lista.map((item) => {
+            const bloqueado = fechamentoPagoNaTela(item.rider_id);
+            return (
+              <li
+                key={item.id}
+                className="border border-stone-200 rounded-xl p-4 flex justify-between gap-3"
+              >
+                <div>
+                  <p className="font-medium">
+                    {nomeMotoboy(item.rider_id)}
+                    {item.type === "entrega" && item.neighborhood_id
+                      ? ` · ${nomeBairro(item.neighborhood_id)}`
+                      : ` · ${tipoLabel(item.type)}`}
+                  </p>
+                  <p className="text-sm text-stone-500">
+                    {hora(item.created_at)}
+                    {hora(item.created_at) ? " · " : ""}
+                    {dinheiro(item.amount)}
+                    {item.notes ? ` · ${item.notes}` : ""}
+                  </p>
+                  {bloqueado ? (
+                    <p className="text-xs font-medium text-green-800 mt-1">Fechamento pago</p>
+                  ) : null}
+                </div>
+                <div className="flex gap-3 text-sm items-start">
+                  <button
+                    type="button"
+                    disabled={bloqueado}
+                    onClick={() => comecarEdicao(item)}
+                    className={bloqueado ? "text-stone-400 cursor-not-allowed" : "underline"}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bloqueado}
+                    onClick={() => excluir(item.id)}
+                    className={
+                      bloqueado ? "text-stone-400 cursor-not-allowed" : "text-red-600 underline"
+                    }
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -404,10 +512,17 @@ export default function LancamentosPage() {
                   {motoboysAtivos.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name}
+                      {fechamentoPagoNaTela(m.id) ? " (fechamento pago)" : ""}
                     </option>
                   ))}
                 </select>
               </label>
+
+              {motoboySelecionadoPago ? (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Fechamento pago. Desmarque o pagamento no Fechamento para alterar os lançamentos.
+                </p>
+              ) : null}
 
               <div>
                 <p className="text-sm text-stone-600 mb-2">Tipo de lançamento</p>
@@ -477,10 +592,16 @@ export default function LancamentosPage() {
               {mensagem && <p className="text-sm text-red-600">{mensagem}</p>}
 
               <button
-                disabled={salvando}
-                className="bg-orange-500 text-white rounded-lg py-2.5 font-medium"
+                disabled={salvando || motoboySelecionadoPago}
+                className="bg-orange-500 text-white rounded-lg py-2.5 font-medium disabled:opacity-60"
               >
-                {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "Lançar"}
+                {salvando
+                  ? "Salvando..."
+                  : motoboySelecionadoPago
+                  ? "Fechamento pago"
+                  : editandoId
+                  ? "Salvar alteração"
+                  : "Lançar"}
               </button>
               <button
                 type="button"
